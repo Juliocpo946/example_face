@@ -1,0 +1,20 @@
+# Entornos virtuales
+venv/
+.venv/
+
+# Configuración de PyCharm
+.idea/
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos temporales
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Configuración del entorno
+.env

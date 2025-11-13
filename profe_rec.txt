@@ -1,0 +1,8 @@
+rest net
+redes neuronales residuales
+ml flow
+
+
+vectorizara las imagenes
+
+ui net mas un lip
