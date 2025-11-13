@@ -1,0 +1,113 @@
+SISTEMA DE ANÁLISIS COGNITIVO CON PY-FEAT
+==========================================
+
+INSTALACIÓN
+-----------
+
+1. Crear entorno virtual:
+   Windows: python -m venv venv && venv\Scripts\activate
+   Linux/Mac: python -m venv venv && source venv/bin/activate
+
+2. Instalar dependencias:
+   pip install -r requirements_pyfeat.txt
+
+3. Primera ejecución (descarga modelos ~500MB):
+   python main_pyfeat.py
+
+
+EJECUCIÓN
+---------
+python main_pyfeat.py
+
+
+CONTROLES
+---------
+- 'q': Salir del programa
+- 'd': Activar/desactivar detalles de todas las emociones
+
+
+ESTADOS COGNITIVOS
+------------------
+FRUSTRADO: anger, disgust, sadness
+DISTRAÍDO: fear, surprise  
+ENTENDIENDO: happiness
+CONCENTRADO: neutral
+
+
+ARQUITECTURA
+------------
+1. face_detector.py
+   - Detecta rostros usando Haar Cascade
+
+2. pyfeat_classifier.py
+   - Analiza emociones con ResMaskNet
+   - Detecta Action Units (FACS)
+   - Analiza landmarks faciales
+
+3. main_pyfeat.py
+   - Integra detección + clasificación
+   - Muestra resultados en tiempo real
+
+
+VENTAJAS DE PY-FEAT
+-------------------
+✓ Suite completa de análisis facial
+✓ Detecta Action Units (músculos faciales)
+✓ Landmarks de 68 puntos
+✓ Estimación de pose de cabeza
+✓ Múltiples modelos state-of-the-art
+✓ Herramientas de visualización avanzadas
+✓ Análisis estadístico integrado
+
+
+MODELOS INCLUIDOS
+-----------------
+Face Detection: RetinaFace, MTCNN, FaceBoxes
+Landmark Detection: MobileNet, PFLD
+Emotion Recognition: ResMaskNet, SVM
+Action Units: XGBoost, SVM, LogisticRegression
+
+
+EMOCIONES DETECTADAS
+--------------------
+- anger: Enojado
+- disgust: Disgusto/Asco
+- fear: Miedo
+- happiness: Feliz
+- sadness: Triste
+- surprise: Sorprendido
+- neutral: Neutral
+
+
+CARACTERÍSTICAS ADICIONALES
+---------------------------
+- Detección de 20 Action Units (FACS)
+- 68 landmarks faciales
+- Orientación de cabeza (pitch, roll, yaw)
+- Análisis frame-a-frame
+- Exportación a DataFrame (pandas)
+
+
+SOLUCIÓN DE PROBLEMAS
+----------------------
+Error: "No module named 'feat'"
+  pip install py-feat
+
+Error: Lento en primera ejecución
+  Normal - descarga múltiples modelos
+
+Error: "No se pudo acceder a la cámara"
+  Cierra otros programas usando la webcam
+
+Error de memoria
+  Cierra otros programas, Py-Feat usa más RAM
+
+Error con torch
+  pip install torch==2.0.1 torchvision==0.15.2
+
+
+DOCUMENTACIÓN
+-------------
+GitHub: https://github.com/cosanlab/py-feat
+Docs: https://py-feat.org/
+Paper: https://link.springer.com/article/10.1007/s42761-023-00191-4
