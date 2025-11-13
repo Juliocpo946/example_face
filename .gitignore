@@ -1,6 +1,8 @@
 # Entornos virtuales
 venv/
 .venv/
+env/
+ENV/
 
 # Configuración de PyCharm
 .idea/
@@ -9,6 +11,7 @@ venv/
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
 # Archivos temporales
 *.log
@@ -18,3 +21,21 @@ __pycache__/
 
 # Configuración del entorno
 .env
+
+# Modelos descargados
+.deepface/
+weights/
+models/
+
+# Archivos de cache
+.cache/
+*.pkl
+*.h5
+*.pb
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# VS Code
+.vscode/
