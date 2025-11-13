@@ -1,9 +1,7 @@
 opencv-python==4.8.1.78
 numpy==1.24.3
+mediapipe==0.10.9
 hsemotion==0.2.0
-deepface==0.0.79
-py-feat==0.6.0
 torch==2.0.1
-torchvision==0.15.2
-tf-keras==2.15.0
 timm==0.9.12
+scipy==1.15.3

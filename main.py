@@ -1,41 +1,34 @@
 import cv2
 from face_detector import FaceDetector
-from ensemble_classifier import EnsembleCognitiveClassifier
+from emotion_classifier import EmotionClassifier
 from gaze_detector import GazeDetector
+from drowsiness_detector import DrowsinessDetector
 
 
 def main():
     print("="*60)
-    print("SISTEMA DE ANÁLISIS COGNITIVO - ENSEMBLE + GAZE")
+    print("SISTEMA DE ANALISIS COGNITIVO")
+    print("MediaPipe + HSEmotion + Gaze + Drowsiness")
     print("="*60)
-    print("[INFO] Inicializando sistema completo...")
-    print("[INFO] Modelos: HSEmotion (50%) + DeepFace (30%) + Py-Feat (20%)")
-    print("[INFO] Suavizado temporal: 15 frames")
-    print("[INFO] NOTA: Primera ejecución descargará ~600MB de modelos")
-    print("="*60)
+    print("[INFO] Inicializando componentes...")
     
     face_detector = FaceDetector()
-    emotion_classifier = EnsembleCognitiveClassifier()
+    emotion_classifier = EmotionClassifier()
     gaze_detector = GazeDetector()
-    
-    if not any(emotion_classifier.models_loaded.values()):
-        print("[ERROR] No se pudo cargar ningún modelo. Ejecuta:")
-        print("  pip install -r requirements.txt")
-        return
+    drowsiness_detector = DrowsinessDetector()
     
     cap = cv2.VideoCapture(0)
-    
     if not cap.isOpened():
-        print("[ERROR] No se pudo acceder a la cámara")
+        print("[ERROR] No se pudo acceder a la camara")
         return
     
-    print("[INFO] Sistema iniciado correctamente")
+    print("[INFO] Sistema iniciado")
     print("="*60)
     print("CONTROLES:")
-    print("  'q' - Salir del programa")
-    print("  'd' - Mostrar/ocultar detalles de emociones")
-    print("  'g' - Activar/desactivar análisis de mirada")
-    print("  'i' - Mostrar/ocultar información del sistema")
+    print("  'q' - Salir")
+    print("  'd' - Detalles emociones")
+    print("  'i' - Info sistema")
+    print("  'r' - Reset somnolencia")
     print("="*60)
     
     state_colors = {
@@ -43,12 +36,12 @@ def main():
         'distraido': (0, 165, 255),
         'frustrado': (0, 0, 255),
         'entendiendo': (255, 255, 0),
+        'somnoliento': (147, 20, 255),
         'desconocido': (128, 128, 128)
     }
     
     frame_count = 0
     show_details = False
-    show_gaze = True
     show_info = True
     
     while True:
@@ -56,26 +49,24 @@ def main():
         if not ret:
             break
         
-        bbox = face_detector.detect(frame)
+        landmarks = face_detector.detect(frame)
         
-        if bbox and frame_count % 5 == 0:
+        if landmarks and frame_count % 3 == 0:
+            bbox = face_detector.get_bbox_from_landmarks(landmarks, frame.shape)
             face_crop = face_detector.crop_face(frame, bbox)
             
             state, confidence, emotion, all_emotions = emotion_classifier.predict(face_crop)
+            looking_at_camera, gaze_direction = gaze_detector.analyze_gaze(landmarks, frame.shape)
+            is_drowsy, drowsy_level, drowsy_stats = drowsiness_detector.detect(landmarks, frame.shape)
             
-            looking_at_camera, gaze_direction, eye_count = gaze_detector.analyze_gaze(face_crop)
-            
-            if not looking_at_camera and state != 'frustrado':
+            if is_drowsy or drowsy_level >= 2:
+                state = 'somnoliento'
+                confidence = 1.0 - drowsy_stats['ear']
+            elif not looking_at_camera and state != 'frustrado':
                 state = 'distraido'
             
-            if show_gaze:
-                frame_display = gaze_detector.draw_eye_analysis(
-                    frame, bbox, looking_at_camera, gaze_direction, eye_count
-                )
-            else:
-                frame_display = face_detector.draw_bbox(frame, bbox)
-            
             color = state_colors.get(state, (255, 255, 255))
+            frame_display = face_detector.draw_bbox(frame, bbox, color)
             
             y_offset = 30
             cv2.putText(frame_display, f"Estado: {state.upper()}", (10, y_offset),
@@ -97,8 +88,19 @@ def main():
             
             if show_info:
                 y_offset += 35
-                models_active = sum(emotion_classifier.models_loaded.values())
-                cv2.putText(frame_display, f"Modelos: {models_active}/3", (10, y_offset),
+                cv2.putText(frame_display, f"EAR: {drowsy_stats['ear']:.2f}", (10, y_offset),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                y_offset += 25
+                cv2.putText(frame_display, f"MAR: {drowsy_stats['mar']:.2f}", (10, y_offset),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                y_offset += 25
+                cv2.putText(frame_display, f"Parpadeos: {drowsy_stats['blinks']}", (10, y_offset),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                y_offset += 25
+                cv2.putText(frame_display, f"Bostezos: {drowsy_stats['yawns']}", (10, y_offset),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                y_offset += 25
+                cv2.putText(frame_display, f"Nivel: {drowsy_level}/3", (10, y_offset),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
             
             if show_details and all_emotions:
@@ -115,16 +117,20 @@ def main():
                     y_offset += 20
             
             if frame_count % 30 == 0:
-                print(f"[ESTADO] {state.upper()} | Confianza: {confidence:.0%} | Emoción: {emotion} | Mirando: {gaze_status}")
+                print(f"[ESTADO] {state.upper()} | Confianza: {confidence:.0%} | "
+                      f"Emocion: {emotion} | Mirando: {gaze_status} | "
+                      f"Somnolencia: {drowsy_level}/3 | EAR: {drowsy_stats['ear']:.2f} | "
+                      f"Parpadeos: {drowsy_stats['recent_blinks']}")
         
-        elif bbox:
+        elif landmarks:
+            bbox = face_detector.get_bbox_from_landmarks(landmarks, frame.shape)
             frame_display = face_detector.draw_bbox(frame, bbox)
         else:
             frame_display = frame
             cv2.putText(frame_display, "Sin rostro detectado", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         
-        cv2.imshow('Sistema Cognitivo Ensemble', frame_display)
+        cv2.imshow('Sistema Cognitivo Completo', frame_display)
         
         frame_count += 1
         
@@ -134,18 +140,16 @@ def main():
         elif key == ord('d'):
             show_details = not show_details
             print(f"[INFO] Detalles: {'ON' if show_details else 'OFF'}")
-        elif key == ord('g'):
-            show_gaze = not show_gaze
-            print(f"[INFO] Análisis de mirada: {'ON' if show_gaze else 'OFF'}")
         elif key == ord('i'):
             show_info = not show_info
-            print(f"[INFO] Información sistema: {'ON' if show_info else 'OFF'}")
+            print(f"[INFO] Info sistema: {'ON' if show_info else 'OFF'}")
+        elif key == ord('r'):
+            drowsiness_detector.reset_drowsy_state()
+            print("[INFO] Estado de somnolencia reiniciado")
     
     cap.release()
     cv2.destroyAllWindows()
-    print("="*60)
     print("[INFO] Sistema detenido")
-    print("="*60)
 
 
 if __name__ == "__main__":
