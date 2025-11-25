@@ -1,104 +1,105 @@
 import cv2
-from face_detector import FaceDetector
-from emotion_classifier import EmotionClassifier
+import logging
+from datetime import datetime
+from config import AppConfig
+from video_capture import VideoCapture
+from analysis_pipeline import AnalysisPipeline
+from display_renderer import DisplayRenderer
+
+
+logging.basicConfig(
+    level=logging.ERROR,
+    format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("APP")
+
+
+class Application:
+    def __init__(self, config: AppConfig = None):
+        self._config = config or AppConfig()
+        self._capture = VideoCapture()
+        self._pipeline = AnalysisPipeline(self._config)
+        self._renderer = DisplayRenderer(self._config.display)
+        self._frame_count = 0
+        self._running = False
+
+    def run(self):
+        print("=" * 60)
+        print("SISTEMA DE ANALISIS DE EMOCIONES Y ATENCION")
+        print("HSEmotion + MediaPipe")
+        print("=" * 60)
+        print("[INFO] Inicializando componentes...")
+        
+        if not self._capture.open():
+            logger.error("No se pudo acceder a la camara")
+            print("[ERROR] No se pudo acceder a la camara")
+            return
+        
+        width, height = self._capture.frame_size
+        self._pipeline.update_image_size(width, height)
+        
+        print("[INFO] Sistema iniciado")
+        print("=" * 60)
+        print("CONTROLES:")
+        print("  'q' - Salir")
+        print("  'd' - Mostrar/ocultar detalles de emociones")
+        print("  'r' - Recalibrar posicion de cabeza")
+        print("=" * 60)
+        
+        self._running = True
+        last_log_state = None
+        
+        while self._running:
+            ret, frame = self._capture.read()
+            if not ret:
+                logger.error("Error al leer frame de la camara")
+                break
+            
+            if self._frame_count % self._config.process_every_n_frames == 0:
+                state, bbox = self._pipeline.process(frame)
+            else:
+                state = self._pipeline.last_state
+                bbox = self._pipeline.last_bbox
+            
+            if state:
+                display = self._renderer.render(frame, state, bbox)
+                
+                if self._frame_count % 30 == 0 and state.face_detected:
+                    if state.final_state != last_log_state:
+                        print(f"[ESTADO] {state.final_state.upper()} | Emocion: {state.emotion} | Confianza: {state.confidence:.0%}")
+                        last_log_state = state.final_state
+            else:
+                display = frame
+            
+            cv2.imshow("Analisis de Emociones y Atencion", display)
+            
+            self._frame_count += 1
+            
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                self._running = False
+            elif key == ord("d"):
+                self._renderer.toggle_details()
+                print(f"[INFO] Detalles: {'activados' if self._renderer._show_details else 'desactivados'}")
+            elif key == ord("r"):
+                self._pipeline.reset_calibration()
+                print("[INFO] Recalibrando... mire a la pantalla")
+        
+        self._shutdown()
+
+    def _shutdown(self):
+        print("[INFO] Cerrando sistema...")
+        self._capture.release()
+        self._pipeline.release()
+        cv2.destroyAllWindows()
+        print("[INFO] Sistema detenido")
 
 
 def main():
-    print("="*60)
-    print("SISTEMA DE ANALISIS DE EMOCIONES")
-    print("HSEmotion - EfficientNet-B0")
-    print("="*60)
-    print("[INFO] Inicializando componentes...")
-    
-    face_detector = FaceDetector()
-    emotion_classifier = EmotionClassifier()
-    
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("[ERROR] No se pudo acceder a la camara")
-        return
-    
-    print("[INFO] Sistema iniciado")
-    print("="*60)
-    print("CONTROLES:")
-    print("  'q' - Salir")
-    print("  'd' - Detalles emociones")
-    print("="*60)
-    
-    state_colors = {
-        'concentrado': (0, 255, 0),
-        'distraido': (0, 165, 255),
-        'frustrado': (0, 0, 255),
-        'entendiendo': (255, 255, 0),
-        'desconocido': (128, 128, 128)
-    }
-    
-    frame_count = 0
-    show_details = False
-    
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        bbox = face_detector.detect(frame)
-        
-        if bbox and frame_count % 3 == 0:
-            face_crop = face_detector.crop_face(frame, bbox)
-            state, confidence, emotion, all_emotions = emotion_classifier.predict(face_crop)
-            
-            color = state_colors.get(state, (255, 255, 255))
-            frame_display = face_detector.draw_bbox(frame, bbox, color)
-            
-            y_offset = 30
-            cv2.putText(frame_display, f"Estado: {state.upper()}", (10, y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-            
-            y_offset += 40
-            cv2.putText(frame_display, f"Confianza: {confidence:.0%}", (10, y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-            
-            y_offset += 35
-            cv2.putText(frame_display, f"Emocion: {emotion}", (10, y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-            
-            if show_details and all_emotions:
-                y_offset += 30
-                cv2.putText(frame_display, "--- Detalles ---", (10, y_offset),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
-                y_offset += 25
-                
-                sorted_emotions = sorted(all_emotions.items(), key=lambda x: x[1], reverse=True)
-                for emo, score in sorted_emotions:
-                    text = f"{emo}: {score:.1f}%"
-                    cv2.putText(frame_display, text, (10, y_offset),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
-                    y_offset += 20
-            
-            if frame_count % 30 == 0:
-                print(f"[ESTADO] {state.upper()} | Confianza: {confidence:.0%} | Emocion: {emotion}")
-        
-        elif bbox:
-            frame_display = face_detector.draw_bbox(frame, bbox)
-        else:
-            frame_display = frame
-            cv2.putText(frame_display, "Sin rostro detectado", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        
-        cv2.imshow('Analisis de Emociones', frame_display)
-        
-        frame_count += 1
-        
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('d'):
-            show_details = not show_details
-            print(f"[INFO] Detalles: {'ON' if show_details else 'OFF'}")
-    
-    cap.release()
-    cv2.destroyAllWindows()
-    print("[INFO] Sistema detenido")
+    config = AppConfig()
+    app = Application(config)
+    app.run()
 
 
 if __name__ == "__main__":
