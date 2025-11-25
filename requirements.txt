@@ -1,10 +1,13 @@
-opencv-python==4.8.1.78
-numpy==1.24.3
+# --- Librerías del Proyecto Original ---
+opencv-python
 hsemotion==0.2.0
-torch==2.0.1
-timm==0.9.12
-scipy==1.15.3
-mediapipe==0.10.9
-sqlalchemy==2.0.23
-pymysql==1.1.0
-python-dotenv==1.0.0
+torch
+numpy
+
+# --- Librerías de Conversión (El Combo Compatible) ---
+# Estas versiones son críticas para que smart_convert.py funcione
+tensorflow==2.15.0
+tensorflow-probability==0.23.0
+onnx==1.15.0
+onnx-tf==1.10.0
+protobuf==3.20.3

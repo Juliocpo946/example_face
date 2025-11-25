@@ -22,3 +22,6 @@ __pycache__/
 shape_predictor_68_face_landmarks.dat
 *.dat
 *.bz2
+emotion_model_tf/
+emotion_model.onnx
+emotion_model.tflite
