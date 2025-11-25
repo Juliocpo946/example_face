@@ -5,3 +5,6 @@ torch==2.0.1
 timm==0.9.12
 scipy==1.15.3
 mediapipe==0.10.9
+sqlalchemy==2.0.23
+pymysql==1.1.0
+python-dotenv==1.0.0
