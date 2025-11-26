@@ -267,6 +267,125 @@ deactivate
 | CPU | 15-25% |
 | Latencia | <100ms |
 
-## Licencia
+Aquí tienes los archivos actualizados y definitivos para tu entorno de Python (`face_detector`). Estos reflejan exactamente las herramientas que usamos para lograr la conversión exitosa (usando `onnx2tf` en lugar de `onnx-tf`).
 
-MIT License
+### 1\. `requirements.txt`
+
+Este archivo incluye todas las dependencias necesarias para Windows y Linux.
+
+```text
+# Librería del modelo original
+hsemotion
+torch
+torchvision
+
+# Herramientas de conversión e intercambio
+onnx
+onnx-simplifier
+onnx-graphsurgeon
+simple_onnx_processing_tools
+sng4onnx
+
+# Herramienta principal de conversión a TFLite
+onnx2tf
+
+# Dependencias necesarias para onnx2tf y TensorFlow
+tensorflow
+tf_keras
+psutil
+numpy
+```
+
+-----
+
+### 2\. `README.md`
+
+Este documento explica cómo instalar y ejecutar la conversión limpia en ambos sistemas operativos.
+
+````markdown
+# Conversor de Modelo de Emociones (HSEmotion -> TFLite)
+
+Este proyecto contiene las herramientas para convertir el modelo de reconocimiento de emociones `hsemotion` (PyTorch) a un archivo `.tflite` **nativo y optimizado** para móviles, solucionando los errores de "Flex Delegates" en Android.
+
+## 📋 Requisitos Previos
+- Python 3.10 o superior.
+- Recomendado: Usar un entorno virtual (`venv` o `conda`).
+
+## ⚙️ Instalación
+
+### Windows (PowerShell)
+```powershell
+# 1. Crear entorno virtual
+python -m venv venv
+
+# 2. Activar entorno
+.\venv\Scripts\activate
+
+# 3. Instalar dependencias
+pip install -r requirements.txt
+````
+
+### Linux / macOS (Terminal)
+
+```bash
+# 1. Crear entorno virtual
+python3 -m venv venv
+
+# 2. Activar entorno
+source venv/bin/activate
+
+# 3. Instalar dependencias
+pip install -r requirements.txt
+```
+
+## 🚀 Uso: Conversión en 2 Pasos
+
+Para evitar errores de compatibilidad, la conversión se hace en dos etapas: de PyTorch a ONNX, y de ONNX a TFLite (usando `onnx2tf`).
+
+### Paso 1: Exportar a ONNX
+
+Ejecuta el script de exportación (asegúrate de tener el archivo `export_onnx.py`):
+
+```bash
+python export_onnx.py
+```
+
+> **Resultado:** Se generará un archivo llamado `model_float32.onnx`.
+
+### Paso 2: Convertir a TFLite Nativo
+
+Usamos la herramienta `onnx2tf` para corregir automáticamente las operaciones incompatibles (como `DepthwiseConv2dNative`):
+
+```bash
+onnx2tf -i model_float32.onnx -o saved_model_tflite
+```
+
+## 📂 Resultado Final
+
+1.  Ve a la carpeta generada `saved_model_tflite/`.
+2.  Encontrarás el archivo `model_float32.tflite`.
+3.  Renómbralo a **`emotion_model.tflite`**.
+4.  Cópialo a tu proyecto Flutter en: `packages/sentiment_analyzer/assets/`.
+
+-----
+
+### 🛠 Solución de Problemas Comunes
+
+**Error: "No module named 'ai\_edge\_litert'" (Solo Windows)**
+Si `onnx2tf` falla en Windows por esta librería faltante:
+
+1.  Ve a: `venv/Lib/site-packages/onnx2tf/utils/common_functions.py`
+2.  Busca la línea: `from ai_edge_litert.interpreter import Interpreter`
+3.  Reemplázala con:
+    ```python
+    try:
+        from ai_edge_litert.interpreter import Interpreter
+    except ImportError:
+        import tensorflow as tf
+        Interpreter = tf.lite.Interpreter
+    ```
+
+<!-- end list -->
+
+```
+```

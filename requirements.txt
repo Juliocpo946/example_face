@@ -1,13 +1,20 @@
-# --- Librerías del Proyecto Original ---
-opencv-python
-hsemotion==0.2.0
+# Librería del modelo original
+hsemotion
 torch
-numpy
+torchvision
 
-# --- Librerías de Conversión (El Combo Compatible) ---
-# Estas versiones son críticas para que smart_convert.py funcione
-tensorflow==2.15.0
-tensorflow-probability==0.23.0
-onnx==1.15.0
-onnx-tf==1.10.0
-protobuf==3.20.3
+# Herramientas de conversión e intercambio
+onnx
+onnx-simplifier
+onnx-graphsurgeon
+simple_onnx_processing_tools
+sng4onnx
+
+# Herramienta principal de conversión a TFLite
+onnx2tf
+
+# Dependencias necesarias para onnx2tf y TensorFlow
+tensorflow
+tf_keras
+psutil
+numpy

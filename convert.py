@@ -1,113 +1,112 @@
-# Conversión con Flex Ops - Warnings corregidos
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suprimir warnings de TF
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Desactivar oneDNN warnings
-
-import warnings
-warnings.filterwarnings('ignore')
-
-import onnx
-if not hasattr(onnx, "mapping"):
-    from onnx import TensorProto
-    import numpy as np
-    class Mapping:
-        TENSOR_TYPE_TO_NP_TYPE = {
-            TensorProto.FLOAT: np.dtype('float32'),
-            TensorProto.DOUBLE: np.dtype('float64'),
-            TensorProto.INT32: np.dtype('int32'),
-            TensorProto.INT64: np.dtype('int64'),
-            TensorProto.STRING: np.dtype('object'),
-            TensorProto.BOOL: np.dtype('bool'),
-            TensorProto.UINT8: np.dtype('uint8'),
-            TensorProto.INT8: np.dtype('int8'),
-            TensorProto.UINT16: np.dtype('uint16'),
-            TensorProto.INT16: np.dtype('int16'),
-            TensorProto.UINT32: np.dtype('uint32'),
-            TensorProto.UINT64: np.dtype('uint64'),
-        }
-    onnx.mapping = Mapping()
-
 import torch
 import torch.nn as nn
-from onnx_tf.backend import prepare
-import tensorflow as tf
 from hsemotion.facial_emotions import HSEmotionRecognizer
+import onnx
 
-print("=== Conversion HSEmotion a TFLite (Flex Ops) ===")
-print()
+print("=== Conversión Definitiva (Reparando Clasificador) ===")
 
-# 1. Cargar modelo
-print("[1/5] Cargando modelo HSEmotion...")
+# 1. Cargar librería
+print("[1/4] Cargando modelo HSEmotion...")
 recognizer = HSEmotionRecognizer(model_name='enet_b0_8_best_afew', device='cpu')
 
+# Buscar el modelo base
 model = None
-for attr_name in dir(recognizer):
-    try:
-        attr_value = getattr(recognizer, attr_name)
-        if isinstance(attr_value, nn.Module):
-            model = attr_value
+if hasattr(recognizer, 'net'):
+    model = recognizer.net
+elif hasattr(recognizer, 'model'):
+    model = recognizer.model
+else:
+    # Búsqueda manual
+    for attr in dir(recognizer):
+        val = getattr(recognizer, attr)
+        if isinstance(val, nn.Module):
+            model = val
             break
-    except:
-        pass
 
 if model is None:
-    print("ERROR: No se encontro el modelo.")
+    print("ERROR: No se encontró el modelo.")
     exit(1)
 
 model.eval()
-print("      Modelo cargado correctamente")
 
-# 2. Exportar a ONNX
-print("[2/5] Exportando a ONNX...")
+# 2. Validar y Reparar el Modelo
 dummy_input = torch.randn(1, 3, 224, 224)
-onnx_path = "emotion_model.onnx"
+with torch.no_grad():
+    output = model(dummy_input)
 
+print(f"   -> Salida original detectada: {output.shape}")
+
+final_model = model
+
+# Si la salida es 1280 (Features), le falta el clasificador. Lo buscamos y lo unimos.
+if output.shape[1] == 1280:
+    print("   -> ¡AVISO! Detectado solo el backbone (1280 features).")
+    print("   -> Buscando y uniendo el clasificador faltante...")
+    
+    # Buscamos la capa lineal (classifier/fc) dentro del modelo original
+    classifier = None
+    # Nombres comunes de la capa final en EfficientNet
+    possible_names = ['classifier', '_fc', 'fc', 'last_linear']
+    
+    for name in possible_names:
+        if hasattr(model, name):
+            classifier = getattr(model, name)
+            print(f"   -> Clasificador encontrado en: '{name}'")
+            break
+            
+    if classifier is not None:
+        # Creamos una clase que ejecute Backbone + Clasificador
+        class CompleteModel(nn.Module):
+            def __init__(self, backbone, head):
+                super().__init__()
+                self.backbone = backbone
+                self.head = head
+            
+            def forward(self, x):
+                # EfficientNet a veces devuelve features en .forward()
+                # y necesita pasar por .head() o .classifier()
+                x = self.backbone(x) 
+                x = self.head(x)
+                return x
+
+        # IMPORTANTE: Para evitar recursión infinita, necesitamos 
+        # separar la parte de extracción de la parte de clasificación si están en el mismo objeto
+        # En timm/efficientnet, .forward() suele hacer todo si no se ha modificado.
+        # Si model(x) da 1280, es probable que 'model' sea solo el extractor o forward() esté truncado.
+        
+        # Truco: Forzamos el modelo wrapper
+        final_model = CompleteModel(model, classifier)
+        
+        # Validamos de nuevo
+        out2 = final_model(dummy_input)
+        print(f"   -> Nueva salida corregida: {out2.shape}")
+        
+        if out2.shape[1] != 8:
+            print("ERROR: Aún no logramos obtener 8 salidas. Revisa la arquitectura.")
+            # Fallback de emergencia: Si todo falla, exportamos lo que hay, 
+            # pero tu app Flutter tendrá que manejar 1280 vectores (no recomendado).
+            final_model = model 
+    else:
+        print("   -> NO se encontró clasificador. Se exportará el backbone (1280).")
+
+# 3. Exportar a ONNX
+print("[2/4] Exportando a ONNX (Opset 11)...")
+onnx_path = "model_float32.onnx"
 torch.onnx.export(
-    model,
+    final_model,
     dummy_input,
     onnx_path,
     input_names=['input'],
     output_names=['output'],
-    opset_version=11,
-    verbose=False
+    opset_version=11
 )
-print("      ONNX exportado")
 
-# 3. Convertir a TensorFlow
-print("[3/5] Convirtiendo a TensorFlow SavedModel...")
-onnx_model = onnx.load(onnx_path)
-tf_rep = prepare(onnx_model)
-tf_rep.export_graph("emotion_model_tf")
-print("      SavedModel creado")
+# 4. Ejecutar conversión automática
+print("[3/4] Ejecutando onnx2tf...")
+os.system(f"onnx2tf -i {onnx_path} -o saved_model_tflite")
 
-# 4. Convertir a TFLite con Flex Ops
-print("[4/5] Convirtiendo a TFLite con Flex Ops...")
-converter = tf.lite.TFLiteConverter.from_saved_model("emotion_model_tf")
-
-converter.target_spec.supported_ops = [
-    tf.lite.OpsSet.TFLITE_BUILTINS,
-    tf.lite.OpsSet.SELECT_TF_OPS
-]
-
-converter.optimizations = [tf.lite.Optimize.DEFAULT]
-converter._experimental_lower_tensor_list_ops = False
-
-tflite_model = converter.convert()
-print("      Conversion completada")
-
-# 5. Guardar
-print("[5/5] Guardando modelo...")
-tflite_path = "emotion_model.tflite"
-with open(tflite_path, 'wb') as f:
-    f.write(tflite_model)
-
-size_mb = len(tflite_model) / 1024 / 1024
-print()
-print("=" * 50)
-print(f"EXITO: {tflite_path}")
-print(f"Tamano: {size_mb:.2f} MB")
-print()
-print("IMPORTANTE: Este modelo requiere Flex Ops en Android.")
-print("Agrega esta dependencia en android/app/build.gradle.kts:")
-print('  implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.14.0")')
-print("=" * 50)
+print("\n" + "="*50)
+print("PROCESO TERMINADO. Revisa la carpeta 'saved_model_tflite'")
+print("Copia 'model_float32.tflite' -> 'emotion_model.tflite' en Flutter.")
+print("="*50)

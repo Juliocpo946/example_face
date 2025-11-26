@@ -1,27 +1,35 @@
+# --- Entornos Virtuales ---
+# Ignora la carpeta donde instalaste las librerías
 venv/
-.venv/
 env/
-ENV/
-.idea/
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.log
-*.tmp
-*.swp
-.DS_Store
 .env
-.cache/
-*.pkl
-*.h5
-*.pb
-.ipynb_checkpoints/
-*.ipynb
-.vscode/
-shape_predictor_68_face_landmarks.dat
-*.dat
-*.bz2
+
+# --- Python Cache ---
+# Archivos compilados que genera Python automáticamente
+__pycache__/
+*.pyc
+
+# --- Artefactos de Conversión (LO MÁS IMPORTANTE) ---
+# Ignora los archivos intermedios de ONNX
+*.onnx
+
+# Ignora las carpetas generadas por onnx2tf y tensorflow
+saved_model_tflite/
 emotion_model_tf/
-emotion_model.onnx
-emotion_model.tflite
+temp_tf_model/
+tf_model/
+
+# --- Modelos Pesados ---
+# Ignora los modelos .tflite generados (cada desarrollador debe generarlos)
+*.tflite
+
+# Ignora el modelo original de PyTorch (suele ser pesado)
+*.pt
+*.pth
+*.h5
+
+# --- IDEs y Sistema ---
+# Archivos de configuración de editores
+.vscode/
+.idea/
+.DS_Store
