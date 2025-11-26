@@ -16,6 +16,7 @@ __pycache__/
 # Ignora las carpetas generadas por onnx2tf y tensorflow
 saved_model_tflite/
 emotion_model_tf/
+saved_model_fixed/
 temp_tf_model/
 tf_model/
 
